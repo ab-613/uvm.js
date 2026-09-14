@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://ab-613.github.io/uvm.js/">
-    <img src="demo screenshot.png" alt="UVM Studio Interface" width="100%">
+    <kbd><img src="demo screenshot.png" alt="UVM Studio" width="100%" style="border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.15);"></kbd>
   </a>
 </p>
 
