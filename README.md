@@ -32,6 +32,38 @@ If you need a real, compliant Python runtime in the browser, use **Pyodide**. If
 
 ---
 
+## Why choose UVM over Pyodide / WebAssembly?
+
+Pyodide is the undisputed standard if you need complete CPython compliance, NumPy, SciPy, or Pandas in the browser. But for documentation sandboxes, coding playgrounds, onboarding tours, and interactive visualizers, Pyodide introduces massive operational friction that UVM is specifically designed to eliminate:
+
+| Feature | Pyodide (WASM) | UVM (Pure JS) |
+| :--- | :--- | :--- |
+| **Download Size** | 20 MB – 50 MB+ runtime payload | **< 250 KB minified** (complete with parser) |
+| **Cold Startup Time** | 2,000 ms – 6,000 ms | **< 50 ms** (instant execution) |
+| **Main-Thread `sleep()` / `input()`** | Blocks UI thread or requires WebWorkers + `COOP`/`COEP` headers for `Atomics.wait` | **Zero-overhead cooperative yield** via ES6 generator fibers; no headers or workers required |
+| **Opcode Stepper & Debugger** | Opaque WASM linear memory; difficult to observe from JavaScript | **100% inspectable JS call stack & operand stack**; step opcode-by-opcode via `.next()` |
+| **Standard Library Footprint** | Ships all stdlib modules up-front in the WASM image | **On-demand VFS streaming**: pulls pure-Python modules (`colorsys`, `heapq`, `calendar`) on-demand from CPython GitHub |
+| **Terminal & Control Codes** | Requires custom xterm.js integration to handle control sequences | **Built-in virtual 2D terminal buffer** handling `\r` carriage returns and `\x1b[2J` ANSI clears directly |
+
+### 1. Instant Boot for Embedded Sandboxes
+If you are embedding a runnable Python example in documentation or an interactive blog post, asking users to download a 30 MB WebAssembly runtime before running 5 lines of code results in high bounce rates. UVM loads and evaluates code virtually instantaneously.
+
+### 2. Main-Thread Cooperative Multitasking (`sleep`, `input`)
+In standard WebAssembly runtimes, `time.sleep()` blocks the browser event loop unless you run the interpreter in a dedicated WebWorker and negotiate shared memory using `SharedArrayBuffer` (which breaks if your host server cannot configure `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers). 
+
+UVM runs directly on the main thread inside an ES6 Generator (`function*`). Calling `time.sleep(ms)` or `input()` simply suspends the generator token, schedules a standard `setTimeout` or DOM event listener, and lets the browser render at 60 FPS while the script waits.
+
+### 3. Purpose-Built for Instruction Steppers & Education
+Because the operand stack, call frames, and program counter are plain JavaScript objects, UVM is a drop-in engine for building visualizers:
+- Single-stepping an opcode is as simple as calling `vm.execute(program, true).next()`.
+- Inspect active stack values, local variable slots, and lexical closures in real-time.
+- Source-map bytecode offsets back to Ohm AST nodes to build synchronized syntax highlighters.
+
+### 4. Zero-Ceremony In-Memory VFS
+Standard Python filesystem code (`with open('/workspace/notes.txt', 'w') as f:`) works instantly in browser memory without mounting Emscripten filesystem backends.
+
+---
+
 ## How it works (and the shortcuts taken)
 
 Because the goal was a micro-VM under 250 KB, several language features are deliberately desugared into simpler primitives rather than implementing full CPython semantics:
