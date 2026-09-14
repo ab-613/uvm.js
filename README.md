@@ -1,223 +1,185 @@
-# UVM Studio — Bytecode Virtual Machine & Stepper
+# uvm.js
 
-[![Tests](https://img.shields.io/badge/tests-17%2F17%20passing-brightgreen)](#-testing)
-[![Size](https://img.shields.io/badge/bundle%20size-~247%20KB-blue)](#-highlights)
-[![Zero WASM](https://img.shields.io/badge/webassembly-zero%20dependencies-orange)](#-highlights)
-[![License](https://img.shields.io/badge/license-MIT-purple)](#-license)
+An experimental Python subset compiler and stack-based virtual machine written in pure JavaScript. Built on top of [Ohm.js](https://ohmjs.org/) and ES6 generators, it runs entirely in the browser without WebAssembly, supports cooperative multitasking (`sleep()`, `input()`), and includes a visual bytecode instruction stepper.
 
-A lightweight, browser-native bytecode virtual machine, compiler, and Python subset runtime written in pure JavaScript. Featuring cooperative multitasking fibers, an in-memory POSIX Virtual File System (VFS), simulated C-extensions, and visual opcode step-debugging.
-
-> 🚀 **Live Demo**: Explore the interactive Monaco Web IDE, visual bytecode stepper, and live ASCII terminal at **[ab-613.github.io/uvm.js](https://ab-613.github.io/uvm.js/)**!
+[**Live Web IDE & Stepper Demo**](https://ab-613.github.io/uvm.js/)
 
 ---
 
-## 🌟 Highlights
+## Why build this?
 
-- **Zero Heavy WebAssembly**: Pure JavaScript runtime under **250 KB minified** (unlike 25MB+ WebAssembly runtimes like Pyodide). Instant startup in any browser or WebView.
-- **Cooperative Fiber Scheduler**: ES6 Generator-driven multitasking (`function*` / `yield`) allowing non-blocking `time.sleep()`, interactive `input()` prompts, and multi-thread interleaving without locking the UI event loop.
-- **Visual Bytecode Stepper**: Step instruction-by-instruction through compiled opcodes, inspecting call stack frames, operand stacks, local variables, and memory in real time.
-- **In-Memory POSIX VFS**: Complete virtual filesystem with support for standard Python `with open(...) as f:` context managers, directory traversal, and dynamic file manipulation.
-- **3-Tier Module Architecture**:
-  - *Tier 1 (VFS Standard Library)*: Pure Python modules loaded and dynamically compiled from virtual disk (`/lib/python3/`).
-  - *Tier 2 (Simulated C Extensions)*: C extension functions compiled directly to UVM bytecode sharing native stack frames.
-  - *Tier 3 (Host Bridges)*: Native host bridges for `math`, `random`, `json`, `re`, and async `requests`.
-- **Clean PEG Grammars**: Extensible Parsing Expression Grammars powered by Ohm.js with indentation preprocessing and helpful syntax diagnostics.
+Most browser-based Python solutions rely on WebAssembly builds of CPython (like Pyodide), which require downloading 20MB–50MB+ runtime bundles before the first line of code executes. 
+
+**uvm.js** approaches the problem from the opposite direction:
+* **Tiny footprint**: Under 250 KB minified (including the Ohm parser).
+* **Zero WebAssembly**: Instant startup in plain browser contexts, WebViews, and Node.js.
+* **Inspectable & educational**: Designed around an instruction-level stepper where you can watch the call stack, operand stack, and AST nodes update in real time.
+* **Non-blocking by design**: The VM executes inside an ES6 Generator (`function*`), allowing scripts to yield for `sleep()` or wait on interactive user input without blocking the main browser thread.
 
 ---
 
-## 🌐 Quick Browser Usage (`<script src>`)
+## How it works
 
-You can embed UVM directly in any webpage with **zero build steps, zero bundlers, and zero import maps**:
+### 1. Generator-Driven Stack VM (`js/vm/vm.js`)
+Instead of a standard `while(true)` dispatch loop, the execution loop is implemented as an ES6 generator (`*executeLoop()`). Every instruction or quantum of work yields control back to a cooperative scheduler (`Scheduler.js`). 
 
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <!-- 1. Include the standalone bundle via jsDelivr CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/uvm-js/dist/uvm.min.js"></script>
-</head>
-<body>
-  <script>
-    // 2. Instantiate and run Python immediately
-    const uvm = new UniversalInterpreter();
+This architecture provides two huge advantages:
+* **True cooperative I/O**: `time.sleep(ms)` or `input()` simply suspends the generator and sets a timer or event listener in JavaScript, resuming execution seamlessly once ready.
+* **Single-step debugging**: Stepping one opcode is as simple as calling `.next()` on the VM generator and reading the stack snapshot.
 
-    uvm.run(`
+### 2. Layout-Sensitive Parsing via Ohm.js (`js/frontend/`)
+Python's significant whitespace and indentation are handled via a preprocessor (`python_preprocessor.js`) that injects block delimiters before passing code to Ohm.js PEG grammars. The AST semantics then desugar higher-level Python syntax (like list/dict comprehensions, `for` loops, and `with` statements) into basic VM primitives.
+
+### 3. On-Demand Stdlib over VFS (`js/packages/package_manager.js`)
+Rather than bundling the entire standard library, `uvm.js` includes an in-memory POSIX Virtual File System. When a script runs `import colorsys` or `import calendar`, the module manager:
+1. Checks the local in-memory `/lib/python3/` directory.
+2. If missing, fetches the official pure-Python `.py` source directly from the `python/cpython` 3.12 GitHub repository.
+3. Caches it in the VFS and compiles it to UVM bytecode on the fly.
+
+### 4. Bytecode-Level C Extension Simulation (`js/vm/c_extension.js`)
+To support C extensions without native compilation tooling or WebAssembly, a lightweight C grammar parses single-file C modules written with standard `Python.h` conventions (e.g. `PyMethodDef`, `PyArg_ParseTuple`). It converts C functions into the **same internal AST** and emits UVM bytecode, allowing C and Python functions to share the exact same call frames and operand stack.
+
+---
+
+## Installation & Usage
+
+### Node.js
+
+```bash
+npm install uvm-js
+```
+
+```javascript
+import { UniversalInterpreter } from 'uvm-js';
+
+const uvm = new UniversalInterpreter();
+
+// 1. Asynchronous run (supports fibers, sleep, and network)
+const res = await uvm.run(`
 def fib(n):
     return n if n <= 1 else fib(n - 1) + fib(n - 2)
 
 for i in range(7):
     print(f"fib({i}) = {fib(i)}")
-    `).then(res => {
-      console.log(res.output);
-    });
-  </script>
-</body>
-</html>
-```
-
-For a complete working UI example, inspect [`examples/standalone_browser.html`](examples/standalone_browser.html).
-
----
-
-## 🚀 Getting Started
-
-### 1. Run Locally (Web IDE & Stepper)
-
-```bash
-# Clone the repository
-git clone https://github.com/ab-613/uvm.js.git
-cd uvm.js
-
-# Install dependencies (Ohm.js)
-npm install
-
-# Start the local development server
-npm start
-```
-
-Navigate to `http://localhost:3000` to launch the Monaco-based IDE with real-time bytecode disassembly, VFS explorer, and debugger.
-
----
-
-### 2. High-Level JavaScript / Node.js SDK
-
-```javascript
-import { UniversalInterpreter } from 'universal-interpreter';
-
-const uvm = new UniversalInterpreter();
-
-// 1. Asynchronous Execution (with cooperative fiber scheduling)
-const result = await uvm.run(`
-x = [i * 2 for i in range(5)]
-print(f"Calculated evens: {x}")
 `, { language: 'python' });
 
-console.log(result.output); // "Calculated evens: [0,2,4,6,8]\n"
+console.log(res.output);
 
-// 2. Synchronous Execution (fast-path for simple non-yielding scripts)
-const syncResult = uvm.runSync('print(2 ** 16)', { language: 'python' });
-console.log(syncResult.output); // "65536\n"
+// 2. Synchronous fast-path
+const sync = uvm.runSync('print(2 ** 16)', { language: 'python' });
+console.log(sync.output); // 65536
 ```
 
----
+### Direct Browser Embed (`<script>`)
 
-### 3. Command Line Interface (CLI)
+No bundler or import maps required:
 
-Run scripts from your terminal:
+```html
+<script src="https://cdn.jsdelivr.net/npm/uvm-js/dist/uvm.min.js"></script>
+<script>
+  const uvm = new UniversalInterpreter();
+
+  uvm.run(`
+import math
+print(f"Square root of 144 is {math.sqrt(144)}")
+  `).then(res => console.log(res.output));
+</script>
+```
+
+### CLI
 
 ```bash
 # Run a Python script
-npm run cli -- run script.py
+npx uvm run script.py
 
-# Disassemble bytecode instructions
-npm run cli -- dis script.py
+# Inspect compiled bytecode instructions
+npx uvm dis script.py
 
-# Evaluate an inline code snippet
-npm run cli -- -e "print([x for x in range(10) if x % 2 == 0])" -l python
+# Evaluate inline snippet
+npx uvm -e "print([x * 2 for x in range(5)])"
 
-# Launch the interactive REPL
-npm run cli -- repl -l python
+# Interactive REPL
+npx uvm repl
 ```
 
 ---
 
-### 4. Low-Level VM & Compiler Access
+## Low-Level Compiler & Stepper API
 
-For building compilers, custom syscalls, or inspecting internal bytecode:
+For custom tooling, educational demos, or inspecting bytecode:
 
 ```javascript
 import {
   parseSource,
   BytecodeCompiler,
   VirtualMachine,
-  Scheduler,
-  vfs,
-  moduleManager,
-  OP
-} from 'universal-interpreter';
+  moduleManager
+} from 'uvm-js';
 
-// Step 1: Parse source code to standardized AST
-const ast = parseSource('x = 42\nprint(x)', 'python');
+// 1. Parse source to AST
+const ast = parseSource('x = 10 + 20\nprint(x)', 'python');
 
-// Step 2: Compile AST to bytecode instructions
+// 2. Compile AST into bytecode
 const compiler = new BytecodeCompiler();
 const program = compiler.compile(ast);
 console.log(program.disassemble());
 
-// Step 3: Execute on stack VM with cooperative scheduler
-const vm = new VirtualMachine({ moduleManager, vfs });
-const scheduler = new Scheduler(vm);
-scheduler.spawn(vm.execute(program));
+// 3. Step instruction-by-instruction
+const vm = new VirtualMachine({ moduleManager });
+vm.singleStepMode = true;
 
-scheduler.run(() => {
-  console.log('Execution finished!');
-});
+const stepper = vm.execute(program);
+
+let step = stepper.next();
+while (!step.done) {
+  const snapshot = vm.getExecutionSnapshot();
+  console.log(`PC: ${snapshot.pc} | Stack:`, snapshot.operandStack);
+  step = stepper.next();
+}
 ```
 
 ---
 
-## 🎯 Language Coverage & Scope
+## Current Status & Limitations
 
-UVM is designed as a **fast, lightweight micro-runtime, sandbox, and educational virtual machine**, not a 1:1 replacement for the 50MB CPython binary distribution:
+`uvm.js` is an educational sandbox and lightweight micro-runtime, **not** a full CPython replacement.
 
-| Feature Area | Status | Details |
+| Feature | Support | Notes |
 | :--- | :--- | :--- |
-| **Python Syntax & Core** | **Supported** | Functions, recursion, closures/upvalues, classes, single inheritance, `try/except/finally`, list/dict/set comprehensions, slicing, f-strings, `*args`, `**kwargs`. |
-| **Cooperative Multitasking** | **Supported** | Fiber scheduler using ES6 generators (`yield`), non-blocking `time.sleep()`, interactive `input()`. |
-| **Filesystem (VFS)** | **Supported** | In-memory POSIX tree, `with open(...) as f:`, read, write, seek. |
-| **Standard Library** | **Supported** | `math`, `random`, `json`, `re`, `statistics`, `colorsys`, async `requests`. |
-| **C Extensions (Tier 2)** | **Experimental** | Compiles ANSI C functions to UVM bytecode sharing native stack frames. |
-| **Java Profile** | **Syntax Preview**| PEG grammar preview demonstrating Java class, method, and loop parsing. |
-| **Full CPython Binaries**| *Out of Scope* | Heavy C-extensions like NumPy/Pandas require WebAssembly/Pyodide. |
+| **Core Syntax** | Supported | Functions, closures/upvalues, classes, single inheritance, comprehensions, slicing, f-strings, `*args`, `try/except/finally`. |
+| **Async / Fibers** | Supported | Generator-backed cooperative multitasking (`sleep`, `input`). |
+| **VFS & Context Managers** | Supported | In-memory POSIX filesystem, `with open(...) as f:`. |
+| **Standard Library** | Supported | Pure-Python modules loaded on-demand from CPython GitHub repo; host bridges for `math`, `time`, `json`, `re`, and async `requests`. |
+| **C Extensions** | Experimental | Parses a small subset of ANSI C and compiles it directly to UVM bytecode (see `_fastmath.c`). |
+| **Binary Wheels (NumPy, Pandas)** | *Out of Scope* | Modules requiring native shared libraries (`.so`, `.pyd`) or Fortran/C++ compilation cannot run in this engine. Use Pyodide for these. |
+| **Java Profile** | Preview Only | Grammar demo showing Java parsing into the universal AST. |
 
 ---
 
-## 🧪 Testing & Verification
+## Development & Testing
 
-UVM includes a comprehensive automated test suite covering frontend parsing, desugaring, compiler slot allocation, VM opcode execution, generator fibers, VFS, and adversarial fuzzing:
+The repository contains an automated test suite covering parsing, compiler slot allocation, upvalues/closures, VFS operations, and adversarial fuzzing:
 
 ```bash
-# Run all 17 test suites
+# Clone repository
+git clone https://github.com/ab-613/uvm.js.git
+cd uvm.js
+
+# Install dev dependencies (Ohm.js, esbuild)
+npm install
+
+# Run test suite
 npm test
-```
 
-All 17 suites pass with 100% reliability.
-
----
-
-## 🏛️ Architecture Overview
-
-```mermaid
-graph TD
-    Source[Raw Source: Python / C / Java] --> Parser[Ohm.js PEG Parser & Preprocessor]
-    Parser --> AST[Standardized Universal AST]
-    AST --> Desugar[Syntactic Desugaring & Normalization]
-    Desugar --> Compiler[Bytecode Compiler]
-    Compiler --> Bytecode[BytecodeProgram & Constant Pool]
-    Bytecode --> VM[Stack Virtual Machine - UVM]
-    VM <--> Scheduler[Cooperative Fiber Scheduler]
-    VM <--> VFS[POSIX In-Memory Virtual File System]
-    VM <--> Modules[3-Tier Module Manager & C FFI]
-    Scheduler --> Console[Stdout / Visual Stepper / DOM]
-```
-
----
-
-## 📦 Building Standalone Distributions
-
-To regenerate the standalone browser and minified distributions:
-
-```bash
+# Build standalone distribution bundles (/dist)
 npm run build
-```
 
-Build outputs:
-- `dist/uvm.bundle.js` — Standalone unminified browser distribution with sourcemaps.
-- `dist/uvm.min.js` — Minified standalone browser bundle (~247 KB).
-- `dist/uvm.mjs` — Standalone ESM distribution for modern module workflows.
+# Launch local Web IDE
+npm start
+```
 
 ---
 
-## 📄 License
+## License
 
-MIT License. Free for educational, commercial, and open-source use.
+MIT
