@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UVM Studio — Python 3.12 Virtual Machine & Bytecode Stepper</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Monaco Editor AMD Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "ohm-js": "./node_modules/ohm-js/index.mjs"
+      }
+    }
+    </script>
+</head>
+<body>
+
+    <!-- Top Compact Header -->
+    <header class="app-header">
+        <div class="header-left">
+            <div class="brand-wordmark" title="UVM Studio 3.5 — Browser-Native Python 3.12 Virtual Machine">
+                <span class="brand-uvm"><span>U</span><span>V</span><span>M</span></span>
+                <span class="brand-studio">Studio</span>
+                <span class="brand-badge">v3.5</span>
+            </div>
+            <!-- Language Mode Pills -->
+            <div class="lang-group" title="Select primary execution language or polyglot targets">
+                <button class="lang-btn active" data-lang="python" title="Primary: Full Python 3.12 Virtual Machine & Standard Library">Python 3.12</button>
+                <button class="lang-btn" data-lang="c" title="Experimental: Compiles C mathematical functions & PyMethodDef to UVM bytecode">C (C-Extension Experimental)</button>
+                <button class="lang-btn" data-lang="java" title="Experimental AST Preview: Demonstrates Java class & method grammar (Syntax Demo Beta)">Java (Syntax Demo Beta)</button>
+            </div>
+        </div>
+
+        <div class="header-center">
+            <div class="demo-picker">
+                <svg class="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <select id="scriptSelect">
+                    <optgroup label="🚀 Flagship Tour (Start Here!)">
+                        <option value="flagship_tour" selected>⭐ UVM 3.5 Flagship Tour (Fibers, C-Ext, OOP, VFS)</option>
+                    </optgroup>
+                    <optgroup label="🎬 Terminal Cinema (ANSI & Control Codes)">
+                        <option value="ascii_star_wars">🎬 Star Wars Episode IV in ASCII (ANSI Clear, \r, Stream)</option>
+                    </optgroup>
+                    <optgroup label="🐍 Python 3 Runtime & Standard Library">
+                        <option value="dynamic_cpython_stdlib">Dynamic CPython 3.12 Stdlib (colorsys on GitHub)</option>
+                        <option value="real_api_requests">Real Async HTTP Requests (requests bridge)</option>
+                        <option value="python_advanced_features">Modern Idioms (Comprehensions, Slicing, Walrus)</option>
+                        <option value="python_complete_runtime">Complete Runtime (Exceptions, *args, with VFS)</option>
+                        <option value="autonomous_banking_core">Autonomous Banking Core (3-Tier OOP & Closures)</option>
+                    </optgroup>
+                    <optgroup label="⚡ Polyglot C-Extensions & Interop">
+                        <option value="polyglot_scientific_pipeline">Scientific Pipeline (Python + C Extension + VFS)</option>
+                        <option value="multi_tier_imports">3-Tier Polyglot Modules (Python, VFS & C)</option>
+                        <option value="c_fastmath_sample">C Extension Source (_fastmath.c Euclid & Fib)</option>
+                    </optgroup>
+                    <optgroup label="🧵 Fibers, Concurrency & VM">
+                        <option value="concurrency_sleep">Non-blocking Cooperative Sleep (Fibers)</option>
+                        <option value="fibonacci_recursion">Recursive Fibonacci (Call Stack Frames)</option>
+                        <option value="interactive_input">Interactive Terminal Input (input())</option>
+                        <option value="loops_and_logic">Loops & Numerical Logic (Prime Scanner)</option>
+                    </optgroup>
+                    <optgroup label="☕ Java Prototype (Beta)">
+                        <option value="class_and_methods">Java Class & Throws Clause (AST Demo)</option>
+                    </optgroup>
+                </select>
+            </div>
+        </div>
+
+        <div class="header-right">
+            <div class="action-btn-group">
+                <button id="runBtn" class="btn btn-run" title="Execute script (Ctrl+Enter)">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <span>Run</span>
+                </button>
+                <button id="stepBtn" class="btn btn-step" title="Step 1 instruction (F10)">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="9 10 4 15 9 20"></polyline>
+                        <path d="M20 4v7a4 4 0 0 1-4 4H4"></path>
+                    </svg>
+                    <span>Step</span>
+                </button>
+                <button id="stopBtn" class="btn btn-stop" disabled title="Halt execution">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="5" y="5" width="14" height="14" rx="1"></rect>
+                    </svg>
+                    <span>Stop</span>
+                </button>
+            </div>
+            <button id="shortcutsBtn" class="btn-icon" title="Architecture & Shortcuts Guide">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Studio Split View -->
+    <main class="app-workspace">
+        <!-- Left Panel: Monaco Code Editor with Thin Activity Bar & File Explorer -->
+        <section class="pane pane-code">
+            <!-- Thin Activity Bar to the left of the editor -->
+            <aside class="sidebar-activity" id="sidebarActivity" title="Activity Bar">
+                <button id="activityExplorerBtn" class="activity-btn" title="Explorer (Toggle File Tree)">
+                    <!-- Classic VS Code Explorer File Icon -->
+                    <svg class="activity-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M15.5 2H8.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"></path>
+                        <path d="M18.5 7h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-1"></path>
+                    </svg>
+                </button>
+                <button id="activityPackagesBtn" class="activity-btn" title="Packages &amp; PIP Manager">
+                    <!-- Package / Extensions 4-Block Icon -->
+                    <svg class="activity-svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                </button>
+            </aside>
+
+            <!-- Collapsible File Explorer Sidebar (Closed by default) -->
+            <aside id="sidebarExplorer" class="sidebar-explorer collapsed">
+                <div class="explorer-header">
+                    <span class="explorer-title">Explorer</span>
+                    <div class="explorer-header-actions">
+                        <button id="refreshExplorerBtn" class="btn-explorer-action" title="Refresh files">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M23 4v6h-6"></path>
+                                <path d="M1 20v-6h6"></path>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                        </button>
+                        <button id="collapseExplorerBtn" class="btn-explorer-action" title="Collapse Explorer">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="explorer-section-header">
+                    <svg class="chevron-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    <span>WORKSPACE</span>
+                </div>
+                <div class="explorer-tree" id="explorerTree">
+                    <!-- Populated dynamically with nested folders and files -->
+                </div>
+            </aside>
+
+            <!-- Collapsible Package & PIP Manager Sidebar -->
+            <aside id="sidebarPackages" class="sidebar-packages collapsed">
+                <div class="packages-header">
+                    <span class="packages-title">PACKAGES</span>
+                    <div class="packages-header-actions">
+                        <button id="refreshPackagesBtn" class="btn-explorer-action" title="Refresh packages">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M23 4v6h-6"></path>
+                                <path d="M1 20v-6h6"></path>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                        </button>
+                        <button id="collapsePackagesBtn" class="btn-explorer-action" title="Collapse Packages">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Package Search / Custom Install Bar -->
+                <div class="packages-search-box">
+                    <div class="packages-input-wrap">
+                        <svg class="search-svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input type="text" id="pkgSearchInput" placeholder="Install package (e.g. colorsys)..." autocomplete="off" />
+                        <button id="pkgInstallDirectBtn" class="btn-pkg-quick" title="Install package">Install</button>
+                    </div>
+                </div>
+
+                <!-- Inline Package Notification Banner -->
+                <div id="pkgAlertBanner" class="pkg-alert-banner" style="display: none;"></div>
+
+                <div class="packages-scroll-area">
+                    <!-- Section: Installed Packages -->
+                    <div class="pkg-section-header" id="pkgInstalledToggle">
+                        <svg class="chevron-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        <span>INSTALLED (<span id="installedCount">0</span>)</span>
+                    </div>
+                    <div class="pkg-list" id="pkgInstalledList">
+                        <!-- Populated dynamically -->
+                    </div>
+
+                    <!-- Section: Popular Modules Registry -->
+                    <div class="pkg-section-header" id="pkgRegistryToggle">
+                        <svg class="chevron-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        <span>POPULAR MODULES</span>
+                    </div>
+                    <div class="pkg-list" id="pkgRegistryList">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Editor Column -->
+            <div class="code-editor-column">
+                <div class="pane-tabbar">
+                    <div class="tab-group-left">
+                        <div class="tab-file active">
+                            <span id="editorTabIcon" class="tab-file-icon"></span>
+                            <span id="editorFileName">main.py</span>
+                            <span class="tab-close" title="Close">&times;</span>
+                        </div>
+                    </div>
+                    <div class="tab-group-right">
+                        <button id="formatBtn" class="btn-mini" title="Format code & trim trailing whitespace">Format</button>
+                        <button id="resetCodeBtn" class="btn-mini" title="Reset to original preset">Reset</button>
+                        <button id="copyCodeBtn" class="btn-mini" title="Copy code to clipboard">Copy</button>
+                    </div>
+                </div>
+
+                <!-- Monaco Editor Container -->
+                <div class="editor-shell">
+                    <div id="monacoContainer" class="monaco-host"></div>
+                    <!-- Fallback Textarea if Monaco is loading or offline -->
+                    <textarea id="codeInput" class="fallback-textarea" spellcheck="false" autocomplete="off" style="display: none;"></textarea>
+                </div>
+            </div>
+        </section>
+
+        <!-- Resizer Divider Handle -->
+        <div id="workspaceResizer" class="pane-resizer" title="Drag to resize panels"></div>
+
+        <!-- Right Split Container: Top Inspector + Bottom Engine Logs Panel -->
+        <div class="workspace-right-col" id="workspaceRightCol">
+            <!-- Top Panel: Multi-Tab Runtime & Execution Inspector -->
+            <section class="pane pane-inspector">
+                <nav class="inspector-tabbar">
+                    <button class="nav-tab active" data-tab="console">Console</button>
+                    <button class="nav-tab" data-tab="repl">Python REPL</button>
+                    <button class="nav-tab" data-tab="bytecode">Bytecode &amp; Stepper</button>
+                    <button class="nav-tab" data-tab="memory">VM Memory</button>
+                </nav>
+
+                <!-- Tab 1: Terminal Console -->
+                <div id="tabContent-console" class="tab-body active">
+                    <div class="sub-toolbar">
+                        <span id="execStatsBadge" class="chip-text">Engine Ready</span>
+                        <div class="sub-toolbar-actions">
+                            <button id="clearConsoleBtn" class="btn-mini">Clear</button>
+                            <button id="copyConsoleBtn" class="btn-mini">Copy</button>
+                        </div>
+                    </div>
+                    <pre id="outputConsole" class="terminal-box">Universal Virtual Machine console ready. Click Run or Step to execute.</pre>
+                    <div id="inputArea" class="terminal-input-row" style="display: none;">
+                        <span class="prompt-arrow">&gt;&gt;</span>
+                        <input type="text" id="interactiveInput" placeholder="Enter input and press Enter..." autocomplete="off" />
+                        <button id="sendInputBtn" class="btn btn-mini">Send</button>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Python Interactive REPL -->
+                <div id="tabContent-repl" class="tab-body">
+                    <div class="sub-toolbar">
+                        <span class="chip-text emerald">Python 3.12 (Interactive UVM REPL)</span>
+                        <div class="sub-toolbar-actions">
+                            <button id="clearReplBtn" class="btn-mini">Clear</button>
+                            <button id="resetReplBtn" class="btn-mini">Reset State</button>
+                        </div>
+                    </div>
+                    <div id="replLog" class="terminal-repl">
+                        <div class="repl-banner">Python 3.12.0 (UVM Virtual Stack Interpreter) &bull; Standard Library Active</div>
+                    </div>
+                    <div class="terminal-input-row">
+                        <span class="prompt-arrow">&gt;&gt;&gt;</span>
+                        <input type="text" id="replInput" placeholder="Type Python expression and press Enter..." autocomplete="off" />
+                        <button id="sendReplBtn" class="btn btn-mini">Eval</button>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Bytecode Disassembly & Instruction Stepper -->
+                <div id="tabContent-bytecode" class="tab-body">
+                    <div class="sub-toolbar">
+                        <span class="chip-text sky">Stack Bytecode Disassembler</span>
+                        <div class="sub-toolbar-actions">
+                            <button id="stepFromTabBtn" class="btn-mini" title="Step 1 instruction (F10)">Step 1 Opcode</button>
+                        </div>
+                    </div>
+                    <div class="stepper-meta-bar">
+                        <span class="stat-pill">IP: <strong id="ipDisplay">0</strong></span>
+                        <span class="stat-pill">SP: <strong id="spDisplay">0</strong></span>
+                        <span class="stat-pill">Opcodes: <strong id="opcodeCountDisplay">0</strong></span>
+                    </div>
+                    <div id="bytecodeContainer" class="bytecode-scroll">
+                        <table class="bytecode-table" id="bytecodeTable">
+                            <thead>
+                                <tr><th>Offset</th><th>Opcode</th><th>Operand</th><th>Description</th></tr>
+                            </thead>
+                            <tbody id="bytecodeTbody">
+                                <tr><td colspan="4" class="empty-row">Run or Compile code to view bytecode.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Memory & Stack Frame Inspector -->
+                <div id="tabContent-memory" class="tab-body">
+                    <div class="sub-toolbar">
+                        <span class="chip-text amber">Virtual Machine Memory &amp; Stack Frame</span>
+                    </div>
+                    <div class="memory-grid">
+                        <div class="memory-card">
+                            <div class="card-head">
+                                <span>Operand Stack</span>
+                                <span id="stackCountBadge" class="count-tag">0 items</span>
+                            </div>
+                            <div id="operandStackList" class="stack-view">
+                                <div class="empty-micro">Stack empty</div>
+                            </div>
+                        </div>
+                        <div class="memory-card">
+                            <div class="card-head">
+                                <span>Call Frames &amp; Locals</span>
+                                <span id="framesCountBadge" class="count-tag">0 frames</span>
+                            </div>
+                            <div id="callStackList" class="stack-view">
+                                <div class="empty-micro">No active frames</div>
+                            </div>
+                        </div>
+                        <div class="memory-card card-full">
+                            <div class="card-head">
+                                <span>Active Global Symbols</span>
+                                <span id="globalsCountBadge" class="count-tag">0 globals</span>
+                            </div>
+                            <div id="globalsList" class="globals-view">
+                                <div class="empty-micro">No user globals active.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Horizontal Resizer Divider Handle between Top Inspector & Bottom Dock Panel -->
+            <div id="inspectorVerticalResizer" class="pane-resizer-h" title="Drag to resize dock panel"></div>
+
+            <!-- Bottom Multi-Tab Dock Panel: AST Runner & Engine Telemetry Logs (#161b22) -->
+            <section class="pane pane-bottom-dock">
+                <div class="dock-header">
+                    <!-- Clean Dock Tabs: Never wraps, generous space -->
+                    <div class="dock-tabs">
+                        <button class="dock-tab active" id="dockTab-ast" data-dock-tab="ast" title="Abstract Syntax Tree & Step Runner">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="8"></circle>
+                                <line x1="12" y1="8" x2="12" y2="16"></line>
+                                <line x1="8" y1="12" x2="16" y2="12"></line>
+                            </svg>
+                            <span class="dock-tab-title">AST Viewer</span>
+                            <span id="dockAstBadge" class="badge-mini badge-live">Ready</span>
+                        </button>
+                        <button class="dock-tab" id="dockTab-engine" data-dock-tab="engine" title="Compiler & Interpreter Engine Logs">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                            </svg>
+                            <span class="dock-tab-title">Engine Logs</span>
+                            <span id="engineLogBadge" class="badge-mini">0 events</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab 1 Body: Visual AST Interactive Tree & Sub-Toolbar -->
+                <div id="dockContent-ast" class="dock-body active">
+                    <div class="sub-toolbar dock-sub-toolbar">
+                        <!-- Stepper & Pause Actions -->
+                        <div class="sub-toolbar-left">
+                            <button id="dockStepBtn" class="btn-dock-step" title="Step 1 instruction / AST node (F10)">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <polyline points="9 10 4 15 9 20"></polyline>
+                                    <path d="M20 4v7a4 4 0 0 1-4 4H4"></path>
+                                </svg>
+                                <span>Step</span>
+                            </button>
+                            <button id="dockPauseBtn" class="btn-mini btn-dock-pause" title="Pause or resume execution">
+                                <span id="pauseIconText">⏸ Pause</span>
+                            </button>
+                        </div>
+                        <!-- View format & tree controls -->
+                        <div class="sub-toolbar-actions">
+                            <div class="dock-pill-group">
+                                <button id="astViewTreeBtn" class="pill-btn active" title="Tree view">Tree</button>
+                                <button id="astViewJsonBtn" class="pill-btn" title="JSON view">JSON</button>
+                            </div>
+                            <button id="astExpandAllBtn" class="btn-mini" title="Expand all nodes">Expand</button>
+                            <button id="astCollapseAllBtn" class="btn-mini" title="Collapse all nodes">Collapse</button>
+                            <button id="copyAstBtn" class="btn-mini" title="Copy AST JSON">Copy</button>
+                        </div>
+                    </div>
+                    <div id="astVisualContainer" class="ast-visual-scroll">
+                        <div class="empty-notice">Compile or run code to inspect interactive AST tree &amp; step execution.</div>
+                    </div>
+                    <pre id="astOutput" class="ast-view" style="display: none;">// AST syntax tree will generate here upon compile...</pre>
+                </div>
+
+                <!-- Tab 2 Body: Engine & Telemetry Logs Console -->
+                <div id="dockContent-engine" class="dock-body" style="display: none;">
+                    <div class="sub-toolbar dock-sub-toolbar">
+                        <span class="chip-text">Compiler &amp; VM Telemetry</span>
+                        <div class="sub-toolbar-actions">
+                            <button id="clearEngineLogsBtn" class="btn-mini" title="Clear engine logs">Clear</button>
+                            <button id="copyEngineLogsBtn" class="btn-mini" title="Copy engine logs">Copy</button>
+                        </div>
+                    </div>
+                    <div id="engineLogConsole" class="engine-logs-body">
+                        <div class="log-empty-state">UVM diagnostic &amp; compiler engine logs will stream here.</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Bottom Studio Status Bar -->
+    <footer class="pane-statusbar">
+        <div class="statusbar-col statusbar-branch">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="6" y1="3" x2="6" y2="15"></line>
+                <circle cx="18" cy="6" r="3"></circle>
+                <circle cx="6" cy="18" r="3"></circle>
+                <path d="M18 9a9 9 0 0 1-9 9"></path>
+            </svg>
+            <span>main*</span>
+        </div>
+        <div class="statusbar-col" id="statusPos">Ln 1, Col 1</div>
+        <div class="statusbar-col" id="statusStats">0 lines</div>
+        <div class="statusbar-col">Spaces: 4</div>
+        <div class="statusbar-col">UTF-8</div>
+        <div class="statusbar-col grow" id="statusArch">UVM Stack Runtime &bull; Tiered Modules</div>
+        <div class="statusbar-col">
+            <span id="vmStatusBadge" class="status-chip ready">Ready</span>
+        </div>
+    </footer>
+
+    <!-- Shortcuts & Architecture Modal -->
+    <div id="shortcutsModal" class="modal-dim" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-top">
+                <h3>UVM Studio &bull; Architecture &amp; Shortcuts</h3>
+                <button id="closeShortcutsModal" class="modal-exit">&times;</button>
+            </div>
+            <div class="modal-scroll">
+                <div class="modal-section">
+                    <h4>⌨️ Hotkeys</h4>
+                    <table class="shortcuts-grid">
+                        <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd> (or <kbd>Cmd</kbd> + <kbd>Enter</kbd>)</td><td>Execute program</td></tr>
+                        <tr><td><kbd>F10</kbd> / <kbd>Alt</kbd> + <kbd>S</kbd></td><td>Step 1 bytecode opcode</td></tr>
+                        <tr><td><kbd>Ctrl</kbd> + <kbd>L</kbd></td><td>Clear terminal / REPL</td></tr>
+                        <tr><td><kbd>Tab</kbd></td><td>Indent 4 spaces (Monaco built-in)</td></tr>
+                        <tr><td><kbd>Esc</kbd></td><td>Close dialogs or halt</td></tr>
+                    </table>
+                </div>
+                <div class="modal-section">
+                    <h4>🏛️ 3-Tier Module Architecture</h4>
+                    <p>Standard library imports execute genuinely without mock strings:</p>
+                    <ul>
+                        <li><strong>Tier 1 (Pure Python on VFS)</strong>: <code>/lib/python3/statistics.py</code> compiled to UVM bytecode on import.</li>
+                        <li><strong>Tier 2 (Genuine C Extensions)</strong>: <code>/lib/c/_fastmath.c</code> compiled from C to bytecode, sharing the exact same stack frames.</li>
+                        <li><strong>Tier 3 (Host Bridges)</strong>: Engine-level bridges for <code>math</code>, <code>random</code>, <code>json</code>, and <code>re</code>.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-bot">
+                <button id="dismissShortcutsModal" class="btn btn-run">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Toast Notifications Container -->
+    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+    <!-- Script Pipeline -->
+    <script type="module" src="js/main.js"></script>
+
+</body>
+</html>

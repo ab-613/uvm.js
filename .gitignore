@@ -1,0 +1,27 @@
+﻿# Dependencies
+node_modules/
+
+# Build outputs & caches
+dist/*.map
+.cache/
+
+# Test output & dumps
+tests/*_results.json
+coverage/
+*.log
+npm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local environment
+.env
+.env.local

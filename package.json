@@ -1,0 +1,73 @@
+{
+  "name": "uvm-js",
+  "version": "3.5.0",
+  "description": "A lightweight browser-native bytecode virtual machine, compiler, and Python runtime in pure JS with cooperative multitasking fibers, VFS, and FFI bridges.",
+  "main": "./js/index.js",
+  "module": "./js/index.js",
+  "unpkg": "./dist/uvm.min.js",
+  "jsdelivr": "./dist/uvm.min.js",
+  "types": "./js/index.d.ts",
+  "bin": {
+    "uvm": "./bin/uvm.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ab-613/uvm.js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ab-613/uvm.js/issues"
+  },
+  "homepage": "https://github.com/ab-613/uvm.js#readme",
+  "exports": {
+    ".": {
+      "types": "./js/index.d.ts",
+      "import": "./js/index.js",
+      "default": "./js/index.js"
+    },
+    "./bundle": "./dist/uvm.bundle.js",
+    "./min": "./dist/uvm.min.js",
+    "./vm": "./js/vm/index.js",
+    "./frontend": "./js/frontend/index.js",
+    "./vfs": "./js/vfs/vfs.js"
+  },
+  "files": [
+    "dist",
+    "js",
+    "bin",
+    "index.html",
+    "styles.css",
+    "README.md",
+    "LICENSE"
+  ],
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "node scripts/run_tests.js && node scripts/test_bundle.js",
+    "start": "node scripts/serve.js",
+    "cli": "node bin/uvm.js"
+  },
+  "keywords": [
+    "interpreter",
+    "virtual-machine",
+    "bytecode",
+    "polyglot",
+    "compiler",
+    "python",
+    "java",
+    "c",
+    "vfs",
+    "fibers",
+    "scheduler"
+  ],
+  "author": "ab-613",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "ohm-js": "^17.5.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}
