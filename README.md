@@ -1,10 +1,23 @@
-# uvm.js
+<p align="center">
+  <img src="logo.png" alt="UVM Studio" width="280">
+</p>
 
-A toy bytecode compiler and stack-based virtual machine for a small subset of Python 3, written from scratch in pure JavaScript.
+<p align="center">
+  A bytecode compiler and stack-based virtual machine for Python 3, written from scratch in pure JavaScript.
+  <br>
+  <strong>Runs in the browser under 250 KB with zero WebAssembly.</strong>
+</p>
 
-Runs in the browser under 250 KB, cold-boots in 50ms, and requires zero WebAssembly.
+<p align="center">
+  <a href="https://ab-613.github.io/uvm.js/"><strong>Open Live Web Studio & Stepper →</strong></a>
+</p>
 
-[**Interactive Web Studio & Opcode Stepper**](https://ab-613.github.io/uvm.js/)  
+<p align="center">
+  <a href="https://ab-613.github.io/uvm.js/">
+    <img src="demo screenshot.png" alt="UVM Studio Interface" width="100%">
+  </a>
+</p>
+
 *(Monaco editor, live-pulsing AST tree, bytecode table, and VM stack/memory inspector)*
 
 ---
