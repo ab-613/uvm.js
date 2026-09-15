@@ -254,6 +254,7 @@ function loadSelectedScript() {
 }
 
 function resetDebuggerState() {
+  cancelPendingTerminalInput();
   activeProgram = null;
   stepVm = null;
   stepGenerator = null;
@@ -1519,7 +1520,25 @@ function logEngine(category, message, level = "info") {
 }
 
 // --- Execution Controller ---
+let currentInputResolver = null;
+let currentInputCleanup = null;
+
+export function cancelPendingTerminalInput() {
+  if (currentInputCleanup) {
+    currentInputCleanup();
+    currentInputCleanup = null;
+  }
+  if (currentInputResolver) {
+    currentInputResolver("");
+    currentInputResolver = null;
+  }
+  const inputArea = document.getElementById("inputArea");
+  if (inputArea) inputArea.style.display = "none";
+}
+
 function requestTerminalInput(promptText, vm) {
+  cancelPendingTerminalInput();
+
   return new Promise((resolve) => {
     const inputArea = document.getElementById("inputArea");
     const inputEl = document.getElementById("interactiveInput");
@@ -1529,21 +1548,33 @@ function requestTerminalInput(promptText, vm) {
       resolve("");
       return;
     }
+
+    currentInputResolver = resolve;
+
     inputArea.style.display = "flex";
     inputEl.value = "";
     inputEl.placeholder = promptText || "Enter input and press Enter...";
     inputEl.focus();
 
-    const submit = () => {
-      const val = inputEl.value;
-      inputArea.style.display = "none";
+    const cleanup = () => {
       sendBtn.removeEventListener("click", submit);
       inputEl.removeEventListener("keydown", handleKey);
+      inputArea.style.display = "none";
+    };
+    currentInputCleanup = cleanup;
+
+    const submit = () => {
+      const val = inputEl.value;
+      cleanup();
+      currentInputCleanup = null;
+      currentInputResolver = null;
+
       if (vm) {
         vm.log(`> ${val}`);
         if (outputConsole) {
           outputConsole.textContent = vm.consoleOutput;
           outputConsole.scrollTop = outputConsole.scrollHeight;
+          scrollElementToBottom(outputConsole);
         }
       }
       resolve(val);
@@ -1559,6 +1590,7 @@ function requestTerminalInput(promptText, vm) {
 }
 
 async function executeProgram() {
+  cancelPendingTerminalInput();
   const code = getCode();
   const startTime = performance.now();
   resetDebuggerState();
@@ -1651,6 +1683,7 @@ async function executeProgram() {
     // 8. Run Scheduler
     scheduler.run(
       () => {
+        cancelPendingTerminalInput();
         const duration = (performance.now() - startTime).toFixed(1);
         outputConsole.textContent = vm.consoleOutput || "(Program executed with no standard output)";
         outputConsole.scrollTop = outputConsole.scrollHeight;
@@ -1674,10 +1707,12 @@ async function executeProgram() {
         clearMonacoLineHighlight();
       },
       (err) => {
+        cancelPendingTerminalInput();
         const duration = (performance.now() - startTime).toFixed(1);
         outputConsole.textContent = (vm.consoleOutput ? vm.consoleOutput + "\n" : "") +
           `Traceback (most recent call last):\n  RuntimeError: ${err.message}`;
         outputConsole.scrollTop = outputConsole.scrollHeight;
+        scrollElementToBottom(outputConsole);
         logEngine("ERROR", `Runtime Error: ${err.message} [Halted after ${duration}ms]`, "error");
         execStats.textContent = `Halted after ${duration}ms`;
         setVmStatus("error", "Error");
@@ -2552,6 +2587,7 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("stepBtn")?.addEventListener("click", stepInstruction);
   document.getElementById("stepFromTabBtn")?.addEventListener("click", stepInstruction);
   document.getElementById("stopBtn")?.addEventListener("click", () => {
+    cancelPendingTerminalInput();
     if (activeScheduler) activeScheduler.stop();
     activeScheduler = null;
     stepGenerator = null;

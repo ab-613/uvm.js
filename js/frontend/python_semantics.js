@@ -96,7 +96,11 @@ function desugarForLoop(targets, iterAst, loopBodyAst, elseBodyAst = null) {
     {
       type: 'VariableDeclarationStatement',
       name: tempIter,
-      expression: iterAst
+      expression: {
+        type: 'CallExpression',
+        callee: { type: 'Identifier', name: '__iter_prep' },
+        arguments: [iterAst]
+      }
     },
     {
       type: 'VariableDeclarationStatement',

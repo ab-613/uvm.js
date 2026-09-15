@@ -247,7 +247,9 @@ export function floatFromHex(s) {
  */
 export function resolveMember(obj, prop) {
   if (obj === null || obj === undefined) {
-    throw new TypeError(`UVM TypeError: cannot read property '${prop}' of null/undefined`);
+    const err = new Error(`AttributeError: 'NoneType' object has no attribute '${prop}'`);
+    err.name = 'AttributeError';
+    throw err;
   }
 
   // 1. Strings
@@ -839,6 +841,24 @@ export class VirtualMachine {
         }
       }
       return res;
+    });
+    this.globals.set('__iter_prep', (obj) => {
+      if (obj === null || obj === undefined) {
+        throw new TypeError("'NoneType' object is not iterable");
+      }
+      if (Array.isArray(obj) || typeof obj === 'string') {
+        return obj;
+      }
+      if (typeof Set !== 'undefined' && obj instanceof Set) {
+        return Array.from(obj);
+      }
+      if (typeof Map !== 'undefined' && obj instanceof Map) {
+        return Array.from(obj.keys());
+      }
+      if (typeof obj === 'object') {
+        return Object.keys(obj);
+      }
+      return Array.from(obj);
     });
     this.globals.set('classmethod', (fn) => fn);
     this.globals.set('staticmethod', (fn) => fn);
@@ -1885,7 +1905,7 @@ export class VirtualMachine {
           const idx = this.operandStack.pop();
           const obj = this.operandStack.pop();
           if (obj === null || obj === undefined) {
-            throw new TypeError(`UVM TypeError: cannot index into null or undefined`);
+            throw new TypeError("'NoneType' object is not subscriptable");
           }
           if (obj && typeof obj === 'object' && !Array.isArray(obj) && obj.__getitem__) {
             const itemFn = obj.__getitem__;
@@ -1893,12 +1913,42 @@ export class VirtualMachine {
             this.operandStack.push(res);
             break;
           }
-          let resolvedIdx = idx;
-          if ((Array.isArray(obj) || typeof obj === 'string') && typeof resolvedIdx === 'number' && resolvedIdx < 0) {
-            resolvedIdx = obj.length + resolvedIdx;
+          if (Array.isArray(obj)) {
+            if (typeof idx !== 'number' || !Number.isInteger(idx)) {
+              throw new TypeError("list indices must be integers or slices, not " + typeof idx);
+            }
+            let resolvedIdx = idx < 0 ? obj.length + idx : idx;
+            if (resolvedIdx < 0 || resolvedIdx >= obj.length) {
+              const err = new RangeError("IndexError: list index out of range");
+              err.name = "IndexError";
+              throw err;
+            }
+            this.operandStack.push(obj[resolvedIdx]);
+            break;
           }
-          this.operandStack.push(obj[resolvedIdx]);
-          break;
+          if (typeof obj === 'string') {
+            if (typeof idx !== 'number' || !Number.isInteger(idx)) {
+              throw new TypeError("string indices must be integers, not " + typeof idx);
+            }
+            let resolvedIdx = idx < 0 ? obj.length + idx : idx;
+            if (resolvedIdx < 0 || resolvedIdx >= obj.length) {
+              const err = new RangeError("IndexError: string index out of range");
+              err.name = "IndexError";
+              throw err;
+            }
+            this.operandStack.push(obj[resolvedIdx]);
+            break;
+          }
+          if (typeof obj === 'object') {
+            if (!(idx in obj)) {
+              const err = new Error(`KeyError: ${JSON.stringify(idx)}`);
+              err.name = "KeyError";
+              throw err;
+            }
+            this.operandStack.push(obj[idx]);
+            break;
+          }
+          throw new TypeError(`'${typeof obj}' object is not subscriptable`);
         }
 
         case OP.SET_INDEX: {
@@ -1906,7 +1956,10 @@ export class VirtualMachine {
           const idx = this.operandStack.pop();
           const obj = this.operandStack.pop();
           if (obj === null || obj === undefined) {
-            throw new TypeError(`UVM TypeError: cannot index into null or undefined`);
+            throw new TypeError("'NoneType' object does not support item assignment");
+          }
+          if (typeof obj === 'string') {
+            throw new TypeError("'str' object does not support item assignment");
           }
           if (obj && typeof obj === 'object' && !Array.isArray(obj) && obj.__setitem__) {
             const setFn = obj.__setitem__;
@@ -1918,13 +1971,26 @@ export class VirtualMachine {
             this.operandStack.push(val);
             break;
           }
-          let resolvedIdx = idx;
-          if (Array.isArray(obj) && typeof resolvedIdx === 'number' && resolvedIdx < 0) {
-            resolvedIdx = obj.length + resolvedIdx;
+          if (Array.isArray(obj)) {
+            if (typeof idx !== 'number' || !Number.isInteger(idx)) {
+              throw new TypeError("list indices must be integers or slices, not " + typeof idx);
+            }
+            let resolvedIdx = idx < 0 ? obj.length + idx : idx;
+            if (resolvedIdx < 0 || resolvedIdx >= obj.length) {
+              const err = new RangeError("IndexError: list assignment index out of range");
+              err.name = "IndexError";
+              throw err;
+            }
+            obj[resolvedIdx] = val;
+            this.operandStack.push(val);
+            break;
           }
-          obj[resolvedIdx] = val;
-          this.operandStack.push(val);
-          break;
+          if (typeof obj === 'object') {
+            obj[idx] = val;
+            this.operandStack.push(val);
+            break;
+          }
+          throw new TypeError(`'${typeof obj}' object does not support item assignment`);
         }
 
         case OP.GET_MEMBER: {
