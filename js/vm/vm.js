@@ -443,11 +443,16 @@ export function resolveMember(obj, prop) {
       case 'pop':
         return (index = -1) => {
           if (obj.length === 0) {
-            console.log('POP ON EMPTY LIST! Stack:', new Error().stack);
-            throw new Error('IndexError: pop from empty list');
+            const err = new RangeError('IndexError: pop from empty list');
+            err.name = 'IndexError';
+            throw err;
           }
-          if (index === -1) return obj.pop();
           const resolved = index < 0 ? obj.length + index : index;
+          if (resolved < 0 || resolved >= obj.length) {
+            const err = new RangeError('IndexError: pop index out of range');
+            err.name = 'IndexError';
+            throw err;
+          }
           return obj.splice(resolved, 1)[0];
         };
       case 'clear':
@@ -611,6 +616,26 @@ export function bindCallArguments(newFrame, callee, args) {
  * Integrates directly with Scheduler.js fibers for zero-cost cooperative time-slicing,
  * non-blocking sleep(), and interactive UI input().
  */
+/**
+ * Deep equality comparison matching Python semantics for lists, dicts, and primitives.
+ */
+function pyEquals(a, b) {
+  if (a === b) return true;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!pyEquals(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  if (a && b && typeof a === 'object' && typeof b === 'object' && !a.__class__ && !b.__class__) {
+    const kA = Object.keys(a), kB = Object.keys(b);
+    if (kA.length !== kB.length) return false;
+    return kA.every(k => k in b && pyEquals(a[k], b[k]));
+  }
+  return false;
+}
+
 export class VirtualMachine {
   constructor(options = {}) {
     this.operandStack = [];
@@ -634,8 +659,24 @@ export class VirtualMachine {
   }
 
   initBuiltins() {
-    this.globals.set('len', (obj) => (obj ? (obj.length !== undefined ? obj.length : Object.keys(obj).length) : 0));
+    this.globals.set('len', (obj) => {
+      if (obj === null || obj === undefined) {
+        throw new TypeError("TypeError: object of type 'NoneType' has no len()");
+      }
+      if (typeof obj === 'string' || Array.isArray(obj)) {
+        return obj.length;
+      }
+      if (obj instanceof Set || obj instanceof Map) {
+        return obj.size;
+      }
+      if (typeof obj === 'object') {
+        if (typeof obj.__len__ === 'function') return obj.__len__();
+        return Object.keys(obj).length;
+      }
+      throw new TypeError(`TypeError: object of type '${typeof obj}' has no len()`);
+    });
     this.globals.set('range', (start, stop, step = 1) => {
+      if (step === 0) throw new RangeError('ValueError: range() arg 3 must not be zero');
       if (stop === undefined) { stop = start; start = 0; }
       const res = [];
       if (step > 0) for (let i = start; i < stop; i += step) res.push(i);
@@ -844,16 +885,16 @@ export class VirtualMachine {
     });
     this.globals.set('__iter_prep', (obj) => {
       if (obj === null || obj === undefined) {
-        throw new TypeError("'NoneType' object is not iterable");
+        throw new TypeError("TypeError: 'NoneType' object is not iterable");
+      }
+      if (typeof obj === 'number' || typeof obj === 'boolean') {
+        throw new TypeError(`TypeError: '${typeof obj}' object is not iterable`);
       }
       if (Array.isArray(obj) || typeof obj === 'string') {
         return obj;
       }
-      if (typeof Set !== 'undefined' && obj instanceof Set) {
+      if (obj instanceof Set || obj instanceof Map) {
         return Array.from(obj);
-      }
-      if (typeof Map !== 'undefined' && obj instanceof Map) {
-        return Array.from(obj.keys());
       }
       if (typeof obj === 'object') {
         return Object.keys(obj);
@@ -1274,7 +1315,12 @@ export class VirtualMachine {
     if (Array.isArray(val)) {
       return val.length > 0;
     }
+    if (val instanceof Set || val instanceof Map) {
+      return val.size > 0;
+    }
     if (typeof val === 'object' && val !== null) {
+      if (typeof val.__bool__ === 'function') return Boolean(val.__bool__());
+      if (typeof val.__len__ === 'function') return val.__len__() > 0;
       return Object.keys(val).length > 0;
     }
     return true;
@@ -1463,7 +1509,17 @@ export class VirtualMachine {
         case OP.ADD: {
           const b = this.operandStack.pop();
           const a = this.operandStack.pop();
-          this.operandStack.push(a + b);
+          if (Array.isArray(a) && Array.isArray(b)) {
+            this.operandStack.push([...a, ...b]);
+          } else if (typeof a === 'string' && typeof b !== 'string') {
+            throw new TypeError(`TypeError: can only concatenate str (not "${typeof b}") to str`);
+          } else if (typeof b === 'string' && typeof a !== 'string') {
+            throw new TypeError(`TypeError: can only concatenate ${typeof a} (not "str") to ${typeof a}`);
+          } else if (Array.isArray(a) && !Array.isArray(b)) {
+            throw new TypeError(`TypeError: can only concatenate list (not "${typeof b}") to list`);
+          } else {
+            this.operandStack.push(a + b);
+          }
           break;
         }
 
@@ -1606,14 +1662,14 @@ export class VirtualMachine {
         case OP.EQ: {
           const b = this.operandStack.pop();
           const a = this.operandStack.pop();
-          this.operandStack.push(a === b);
+          this.operandStack.push(pyEquals(a, b));
           break;
         }
 
         case OP.NEQ: {
           const b = this.operandStack.pop();
           const a = this.operandStack.pop();
-          this.operandStack.push(a !== b);
+          this.operandStack.push(!pyEquals(a, b));
           break;
         }
 
@@ -1655,13 +1711,19 @@ export class VirtualMachine {
           const b = this.operandStack.pop();
           const a = this.operandStack.pop();
           if (b === null || b === undefined) {
-            this.operandStack.push(false);
-          } else if (Array.isArray(b) || typeof b === 'string') {
+            throw new TypeError(`TypeError: argument of type 'NoneType' is not iterable`);
+          }
+          if (typeof b === 'number' || typeof b === 'boolean') {
+            throw new TypeError(`TypeError: argument of type '${typeof b}' is not iterable`);
+          }
+          if (Array.isArray(b) || typeof b === 'string') {
             this.operandStack.push(b.includes(a));
+          } else if (b instanceof Set || b instanceof Map) {
+            this.operandStack.push(b.has(a));
           } else if (typeof b === 'object') {
             this.operandStack.push(a in b);
           } else {
-            this.operandStack.push(false);
+            throw new TypeError(`TypeError: argument of type '${typeof b}' is not iterable`);
           }
           break;
         }

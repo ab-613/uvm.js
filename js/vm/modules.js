@@ -1026,8 +1026,15 @@ export class ModuleManager {
       min: Math.min,
       max: Math.max,
       sum: (arr, start = 0) => Array.from(arr || []).reduce((a, b) => a + b, start),
-      len: (x) => (x ? (x.length !== undefined ? x.length : (x.size !== undefined ? x.size : Object.keys(x).length)) : 0),
+      len: (x) => {
+        if (x === null || x === undefined) throw new TypeError("TypeError: object of type 'NoneType' has no len()");
+        if (typeof x === 'string' || Array.isArray(x)) return x.length;
+        if (x instanceof Set || x instanceof Map) return x.size;
+        if (typeof x === 'object') return Object.keys(x).length;
+        throw new TypeError(`TypeError: object of type '${typeof x}' has no len()`);
+      },
       range: (start, stop, step = 1) => {
+        if (step === 0) throw new RangeError('ValueError: range() arg 3 must not be zero');
         if (stop === undefined) { stop = start; start = 0; }
         const res = [];
         for (let i = start; step > 0 ? i < stop : i > stop; i += step) res.push(i);
